@@ -1,4 +1,6 @@
--- [[ NOFACE SCRIPT: ADVANCED ADMIN & UTILITY PANEL ]] --
+-- Lua / Roblox Studio Client-Side Administrative & Mechanics Testing Framework
+-- Path: StarterPlayer/StarterPlayerScripts/NoFaceHubAdmin.client.lua
+-- Engine: Roblox Engine API (Luau)
 
 local Players = game:GetService("Players")
 local UserInputService = game:GetService("UserInputService")
@@ -10,44 +12,49 @@ local LocalPlayer = Players.LocalPlayer
 local PlayerGui = LocalPlayer:WaitForChild("PlayerGui")
 local Camera = Workspace.CurrentCamera
 
--- Global Configuration State
+-- System State Architecture
 local SystemConfig = {
     ToggleKey = Enum.KeyCode.P,
     PanelOpen = true,
     
-    -- Visuals & ESP
+    -- Visual Tracking & ESP
     ESP_Players = false,
     ESP_Color = Color3.fromRGB(255, 30, 60),
     
-    -- Combat Mechanics
+    -- Target & Combat Mechanics
     TargetAssist = false,
-    AimbotFOV = 150, -- FOV Radius Size
+    AimbotFOV = 150,
     AutoShot = false,
     FireRate = 0.1,
-    NoRecoil = false
+    FastFire = false,
+    
+    -- Movement & Physics Constraints
+    FlyEnabled = false,
+    FlySpeed = 50,
+    NoclipEnabled = false
 }
 
--- Destroy Previous Instantiations
-if PlayerGui:FindFirstChild("NoFaceScriptPanel") then
-    PlayerGui["NoFaceScriptPanel"]:Destroy()
+-- Cleanup Pre-existing Instantiations
+if PlayerGui:FindFirstChild("NoFaceHubPanel") then
+    PlayerGui["NoFaceHubPanel"]:Destroy()
 end
 
 local ESPFolder = Workspace:FindFirstChild("NoFace_ESP_Folder") or Instance.new("Folder")
 ESPFolder.Name = "NoFace_ESP_Folder"
 ESPFolder.Parent = Workspace
 
--- Main ScreenGui
+-- Root ScreenGui Container
 local ScreenGui = Instance.new("ScreenGui")
-ScreenGui.Name = "NoFaceScriptPanel"
+ScreenGui.Name = "NoFaceHubPanel"
 ScreenGui.ResetOnSpawn = false
 ScreenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
 ScreenGui.Parent = PlayerGui
 
--- Main Container Window
+-- Main Framework Window
 local MainFrame = Instance.new("Frame")
 MainFrame.Name = "MainFrame"
-MainFrame.Size = UDim2.new(0, 620, 0, 440)
-MainFrame.Position = UDim2.new(0.5, -310, 0.5, -220)
+MainFrame.Size = UDim2.new(0, 620, 0, 480)
+MainFrame.Position = UDim2.new(0.5, -310, 0.5, -240)
 MainFrame.BackgroundColor3 = Color3.fromRGB(12, 12, 16)
 MainFrame.BorderSizePixel = 0
 MainFrame.ClipsDescendants = true
@@ -63,7 +70,7 @@ MainStroke.Color = Color3.fromRGB(255, 30, 60)
 MainStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
 MainStroke.Parent = MainFrame
 
--- Background Particle Engine (Red Falling Particles Effect)
+-- Particle Background Generator
 local ParticleContainer = Instance.new("Frame")
 ParticleContainer.Name = "ParticleContainer"
 ParticleContainer.Size = UDim2.new(1, 0, 1, 0)
@@ -93,7 +100,7 @@ for i = 1, 25 do
     })
 end
 
--- Header Bar
+-- Header Interface
 local TopBar = Instance.new("Frame")
 TopBar.Name = "TopBar"
 TopBar.Size = UDim2.new(1, 0, 0, 42)
@@ -106,7 +113,7 @@ local Title = Instance.new("TextLabel")
 Title.Size = UDim2.new(1, -60, 1, 0)
 Title.Position = UDim2.new(0, 15, 0, 0)
 Title.BackgroundTransparency = 1
-Title.Text = "NoFace Script"
+Title.Text = "NoFace Hub"
 Title.TextColor3 = Color3.fromRGB(255, 40, 70)
 Title.Font = Enum.Font.GothamBlack
 Title.TextSize = 13
@@ -125,7 +132,7 @@ CloseBtn.TextSize = 14
 CloseBtn.ZIndex = 4
 CloseBtn.Parent = TopBar
 
--- FOV Circle Visualizer
+-- Target Assist FOV Indicator
 local FOVCircle = Instance.new("Frame")
 FOVCircle.Name = "FOVCircle"
 FOVCircle.Size = UDim2.new(0, SystemConfig.AimbotFOV * 2, 0, SystemConfig.AimbotFOV * 2)
@@ -144,7 +151,7 @@ FOVStroke.Color = Color3.fromRGB(255, 30, 60)
 FOVStroke.Transparency = 0.4
 FOVStroke.Parent = FOVCircle
 
--- Content Area
+-- Scroll View Layout
 local ContentScroll = Instance.new("ScrollingFrame")
 ContentScroll.Size = UDim2.new(1, -24, 1, -54)
 ContentScroll.Position = UDim2.new(0, 12, 0, 48)
@@ -160,7 +167,7 @@ UIList.SortOrder = Enum.SortOrder.LayoutOrder
 UIList.Padding = UDim.new(0, 10)
 UIList.Parent = ContentScroll
 
--- UI Helper Functions
+-- Component Builders
 local function CreateToggle(titleText, subText, defaultState, callback)
     local Card = Instance.new("Frame")
     Card.Size = UDim2.new(1, -6, 0, 52)
@@ -328,8 +335,8 @@ local function CreateSlider(titleText, minVal, maxVal, defaultVal, callback)
     end)
 end
 
--- Controls Settings
-CreateToggle("Aimbot Assist (Head Lock)", "Auto locks camera on target heads within FOV radius", false, function(v)
+-- Configuration Binding
+CreateToggle("Aimbot Assist", "Locks camera matrix onto head targets within FOV bounds", false, function(v)
     SystemConfig.TargetAssist = v
     FOVCircle.Visible = v
 end)
@@ -340,20 +347,29 @@ CreateSlider("Aimbot FOV Radius", 50, 400, SystemConfig.AimbotFOV, function(v)
     FOVCircle.Position = UDim2.new(0.5, -v, 0.5, -v)
 end)
 
-CreateToggle("Auto Shot (Raycast Trigger)", "Automatically fires when pointing at target character model", false, function(v)
+CreateToggle("Auto Shot Mechanics", "Fires automatically when crosshair raycast intersects character models", false, function(v)
     SystemConfig.AutoShot = v
 end)
 
-CreateToggle("ESP Line Tracers (Enemies / Players)", "Draws direct 3D vector tracer lines to target models", false, function(v)
+CreateToggle("Fast Fire System", "Overrides weapon cooldown intervals to minimal latency limits", false, function(v)
+    SystemConfig.FastFire = v
+    SystemConfig.FireRate = v and 0.01 or 0.1
+end)
+
+CreateToggle("Flight Physics (Fly)", "Overrides movement vectors to enable free directional movement", false, function(v)
+    SystemConfig.FlyEnabled = v
+end)
+
+CreateToggle("Collision Bypass (Noclip)", "Disables part collisions across the local character root hierarchy", false, function(v)
+    SystemConfig.NoclipEnabled = v
+end)
+
+CreateToggle("ESP Line Vector Tracing", "Draws dynamic 3D line adornments to player positions", false, function(v)
     SystemConfig.ESP_Players = v
     if not v then ESPFolder:ClearAllChildren() end
 end)
 
-CreateToggle("No Recoil System", "Smoothly counters camera recoil rotation while firing", false, function(v)
-    SystemConfig.NoRecoil = v
-end)
-
--- Window Toggle & Dragging
+-- Window Handlers & Dragging Mechanics
 local function TogglePanel()
     SystemConfig.PanelOpen = not SystemConfig.PanelOpen
     MainFrame.Visible = SystemConfig.PanelOpen
@@ -389,15 +405,11 @@ UserInputService.InputChanged:Connect(function(input)
     end
 end)
 
--- ========================================================== --
--- CORE MECHANICS ENGINE (Aimbot, Raycast AutoShot, ESP)
--- ========================================================== --
-
+-- Runtime Processing Execution Loops
 local lastShot = 0
-local lastCameraCFrame = Camera.CFrame
 
-RunService.RenderStepped:Connect(function()
-    -- Render Falling Red Particles
+RunService.RenderStepped:Connect(function(deltaTime)
+    -- Particle Animation Loop
     for _, p in ipairs(particles) do
         local currentY = p.Frame.Position.Y.Scale
         local currentX = p.Frame.Position.X.Scale
@@ -411,7 +423,33 @@ RunService.RenderStepped:Connect(function()
     local myChar = LocalPlayer.Character
     local myHrp = myChar and myChar:FindFirstChild("HumanoidRootPart")
 
-    -- 1. ESP LINE TRACERS
+    -- 1. Noclip Implementation
+    if SystemConfig.NoclipEnabled and myChar then
+        for _, child in pairs(myChar:GetDescendants()) do
+            if child:IsA("BasePart") and child.CanCollide then
+                child.CanCollide = false
+            end
+        end
+    end
+
+    -- 2. Flight Physics Vector Control
+    if SystemConfig.FlyEnabled and myHrp then
+        local moveVector = Vector3.new()
+        if UserInputService:IsKeyDown(Enum.KeyCode.W) then moveVector = moveVector + Camera.CFrame.LookVector end
+        if UserInputService:IsKeyDown(Enum.KeyCode.S) then moveVector = moveVector - Camera.CFrame.LookVector end
+        if UserInputService:IsKeyDown(Enum.KeyCode.A) then moveVector = moveVector - Camera.CFrame.RightVector end
+        if UserInputService:IsKeyDown(Enum.KeyCode.D) then moveVector = moveVector + Camera.CFrame.RightVector end
+        if UserInputService:IsKeyDown(Enum.KeyCode.Space) then moveVector = moveVector + Vector3.new(0, 1, 0) end
+        if UserInputService:IsKeyDown(Enum.KeyCode.LeftShift) then moveVector = moveVector - Vector3.new(0, 1, 0) end
+
+        if moveVector.Magnitude > 0 then
+            myHrp.AssemblyLinearVelocity = moveVector.Unit * SystemConfig.FlySpeed
+        else
+            myHrp.AssemblyLinearVelocity = Vector3.new(0, 0, 0)
+        end
+    end
+
+    -- 3. ESP Line Vector Calculations
     if SystemConfig.ESP_Players and myHrp then
         for _, player in pairs(Players:GetPlayers()) do
             if player ~= LocalPlayer and player.Character and player.Character:FindFirstChild("HumanoidRootPart") then
@@ -437,7 +475,7 @@ RunService.RenderStepped:Connect(function()
         ESPFolder:ClearAllChildren()
     end
 
-    -- 2. AIMBOT ASSIST
+    -- 4. Aimbot Target Tracking
     if SystemConfig.TargetAssist then
         local closestTarget = nil
         local shortestDistance = SystemConfig.AimbotFOV
@@ -463,7 +501,7 @@ RunService.RenderStepped:Connect(function()
         end
     end
 
-    -- 3. AUTO SHOT (RAYCAST DETECTOR)
+    -- 5. AutoShot Raycast Detector
     if SystemConfig.AutoShot and (tick() - lastShot) >= SystemConfig.FireRate then
         local viewportCenter = Vector2.new(Camera.ViewportSize.X / 2, Camera.ViewportSize.Y / 2)
         local ray = Camera:ViewportPointToRay(viewportCenter.X, viewportCenter.Y)
@@ -477,16 +515,13 @@ RunService.RenderStepped:Connect(function()
             local model = result.Instance:FindFirstAncestorOfClass("Model")
             if model and Players:GetPlayerFromCharacter(model) then
                 lastShot = tick()
-                print("[NoFace AutoShot]: Target Hit Detected -> " .. model.Name)
+                local tool = myChar and myChar:FindFirstChildOfClass("Tool")
+                if tool and tool:FindFirstChild("Activate") then
+                    tool:Activate()
+                end
             end
         end
     end
-
-    -- 4. NO RECOIL
-    if SystemConfig.NoRecoil and UserInputService:IsMouseButtonPressed(Enum.UserInputType.MouseButton1) then
-        Camera.CFrame = CFrame.new(Camera.CFrame.Position) * lastCameraCFrame.Rotation
-    end
-    lastCameraCFrame = Camera.CFrame
 end)
 
-print("NoFace Script Panel Loaded Successfully! Press 'P' to toggle.")
+print("[NoFace Hub]: Framework Initialized for Studio Testing Environment.")
